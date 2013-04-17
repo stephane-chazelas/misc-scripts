@@ -1,10 +1,11 @@
-'echo' +"'\
+'echo' +"'[{<?php echo chr(13)?>php <?php echo PHP_VERSION.chr(10);exit;?>}\
 @ goto dos \
 [exit[if {[lsearch -exact [package names] Expect]>=0} {puts expect\ [\
 package require Expect]\ (Tcl\ [info patchlevel])} elseif {[lsearch -exact [\
 package names] Tk]>=0} {puts wish\ (Tcl\ [info patchlevel],\ Tk\ [package \
-require Tk])} else {puts tcl\ [info patchlevel]}]]' >/dev/null ' {\">/dev/null \
-">"/dev/null" +"\'";q='''=.q,';q=%!\"
+require Tk])} else {puts tcl\ [info patchlevel]}]]]' >/dev/null ' {\">/dev/null \
+">"/dev/null" +"\'";q="#{",1//2,"}";a=+1;q='''=.q,';q=%!\"
+echo = /* > /dev/null
 echo ">/dev/null;status=0;@ {status=1};*=(" '$' ");~ $status 1&&{e='"\
 "';eval catch $2 ^'&version {eval ''echo <='^ $2 ^'&version''}';exit};e='"\
 "';if (eval '{let ''a^~a''} >[2] /dev/null'){e='"\
@@ -24,10 +25,13 @@ goto fin
 =S"';f=false e=exec\ echo n=/dev/null v=SH_VERSION;`(eval "f() { echo :
 };f")2>$n` $f||$e Bourne-like shell without function
 case `(: ${_z_?1}) 2>&1` in 1) $e ash/BSD sh;;esac;t(){
-eval "\${$1$v+:} $f &&exec echo ${2}sh \$$1$v";};t BA ba;t Z z
-a=:\ $f;case `(typeset -Z2 b=0;$e $b)2>$n` in 00) (`eval '$e ${a:1}'`:)2>$n \
-||eval '$e ksh93 ${.sh.version}';t K pdk;$e ksh88;;esac;case `(eval '$e ${a#*s}$($e 1
+eval "\${$1$v+:} $f &&exec echo ${2}sh \$$1$v";};t BA ba;t Z z;t PO po;t YA ya
+case `(typeset -Z2 b=0;$e $b)2>$n` in 00) (eval ':${.}')2>$n&&eval '
+$e ksh93 ${.sh.version}';t K pdk;$e ksh88;;esac;case `(eval '$e ${f#*s}$($e 1
 )$((1+1))')2>$n` in e12)$e POSIX shell;;esac;$e Bourne-like shell;: !
-print "ruby ",VERSION,"\n";exit;' '''
-import sys;print "python",sys.version;z='\
-: fin } '
+print "ruby ",RUBY_VERSION,"\n";exit;' '''
+import sys;print("python "+sys.version);z='''
+: fin */1;s="";print("function"==typeof version?"string"==
+typeof(v=version())?v:(typeof build=="function"?
+s="SpiderMonkey ":"")+"JavaScript "+v:version+"\n");if(s)build();//} '''
+
