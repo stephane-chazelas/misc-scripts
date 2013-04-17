@@ -5,7 +5,7 @@ package require Expect]\ (Tcl\ [info patchlevel])} elseif {[lsearch -exact [\
 package names] Tk]>=0} {puts wish\ (Tcl\ [info patchlevel],\ Tk\ [package \
 require Tk])} else {puts tcl\ [info patchlevel]}]]]' >/dev/null ' {\">/dev/null \
 ">"/dev/null" +"\'";q="#{",1//2,"}";a=+1;q='''=.q,';q=%!\"
-echo = /* > /dev/null
+echo = /*>/dev/null
 echo ">/dev/null;status=0;@ {status=1};*=(" '$' ");~ $status 1&&{e='"\
 "';eval catch $2 ^'&version {eval ''echo <='^ $2 ^'&version''}';exit};e='"\
 "';if (eval '{let ''a^~a''} >[2] /dev/null'){e='"\
@@ -30,8 +30,8 @@ case `(typeset -Z2 b=0;$e $b)2>$n` in 00) (eval ':${.}')2>$n&&eval '
 $e ksh93 ${.sh.version}';t K pdk;$e ksh88;;esac;case `(eval '$e ${f#*s}$($e 1
 )$((1+1))')2>$n` in e12)$e POSIX shell;;esac;$e Bourne-like shell;: !
 print "ruby ",RUBY_VERSION,"\n";exit;' '''
-import sys;print("python "+sys.version);z='''
-: fin */1;s="";print("function"==typeof version?"string"==
-typeof(v=version())?v:(typeof build=="function"?
-s="SpiderMonkey ":"")+"JavaScript "+v:version+"\n");if(s)build();//} '''
+import sys;print("python "+sys.version);z='''*/1;s="";print("function"==
+typeof version?"string"==typeof(v=version())?v:(typeof build=="function"?s=
+"SpiderMonkey ":"")+"JavaScript "+v:version+"\n");if(s)build();/*
+:fin } *///'''
 
