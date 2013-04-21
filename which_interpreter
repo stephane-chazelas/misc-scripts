@@ -1,9 +1,8 @@
 'echo' +"'[{<?php echo chr(13)?>php <?php echo PHP_VERSION.chr(10);exit;?>}\
-@ goto dos \
-[exit[if {[lsearch -exact [package names] Expect]>=0} {puts expect\ [\
-package require Expect]\ (Tcl\ [info patchlevel])} elseif {[lsearch -exact [\
-package names] Tk]>=0} {puts wish\ (Tcl\ [info patchlevel],\ Tk\ [package \
-require Tk])} else {puts tcl\ [info patchlevel]}]]]' >/dev/null ' {\">/dev/null \
+@GOTO DOS [exit[set 1 [[set 2 package] names];set 3 Tcl\ [info patchlevel];\
+if {[lsearch -exact $1 Expect]>=0} {puts expect\ [$2 require Expect]\ ($3)} \
+elseif {[lsearch -exact $1 Tk]>=0} {puts wish\ ($3,\ Tk\ [$2 require Tk])} \
+else {puts $3}]]]' >/dev/null ' {\">/dev/null \
 ">"/dev/null" +"\'";q="#{",1//2,"}";a=+1;q='''=.q,';q=%!\"
 echo = /*>/dev/null
 echo ">/dev/null;status=0;@ {status=1};*=(" '$' ");~ $status 1&&{e='"\
@@ -16,11 +15,12 @@ exec echo $version
 else
 exec echo csh
 endif
-: dos
-@echo off
-cls
-echo %OS% %COMSPEC%
-goto fin
+:DOS
+@CLS
+@IF NOT "%DOSEMU_VERSION%"=="" ECHO DOSEMU %DOSEMU_VERSION%
+@ECHO %OS% %COMSPEC%
+@VER
+@GOTO FIN
 ", unless eval 'printf "perl %vd\n",$^V;exit;'> "/dev/null";eval ': "\'';
 =S"';f=false e=exec\ echo n=/dev/null v=SH_VERSION;`(eval "f() { echo :
 };f")2>$n` $f||$e Bourne-like shell without function
@@ -33,5 +33,5 @@ print "ruby ",RUBY_VERSION,"\n";exit;' ''';import sys
 print("python "+sys.version);z='''*/1;s="";j="JavaScript";print((f="function")
 ==(t=typeof version)?"string"==typeof(v=version())?v:(typeof build!=f?"":s=
 "SpiderMonkey ")+j+" "+v:(t=="undefined"?j+"?":version)+"\n");if(s)build();/*
-:fin } *///'''
+:FIN } *///'''
 
