@@ -4,7 +4,7 @@ if {[lsearch -exact $1 Expect]>=0} {puts expect\ [$2 require Expect]\ ($3)} \
 elseif {[lsearch -exact $1 Tk]>=0} {puts wish\ ($3,\ Tk\ [$2 require Tk])} \
 else {puts $3}]]]' >/dev/null ' {\">/dev/null \
 ">"/dev/null" +"\'";q="#{",1//2,"}";a=+1;q='''=.q,';q=%!\"
-echo = /*>/dev/null
+'echo' + /*>/dev/null
 echo ">/dev/null;status=0;@ {status=1};*=(" '$' ");~ $status 1&&{e='"\
 "';eval catch $2 ^'&version {eval ''echo <='^ $2 ^'&version''}';exit};e='"\
 "';if (eval '{let ''a^~a''} >[2] /dev/null'){e='"\
