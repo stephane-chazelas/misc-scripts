@@ -4,7 +4,7 @@ if {[lsearch -exact $1 Expect]>=0} {puts expect\ [$2 require Expect]\ ($3)} \
 elseif {[lsearch -exact $1 Tk]>=0} {puts wish\ ($3,\ Tk\ [$2 require Tk])} \
 else {puts $3}]]]' >/dev/null ' {\">/dev/null \
 ">"/dev/null" +"\'";q="#{",1//2,"}";a=+1;q='''=.q,';q=%!\"
-'echo' + /*>/dev/null
+'echo' /*>/dev/null
 echo ">/dev/null;status=0;@ {status=1};*=(" '$' ");~ $status 1&&{e='"\
 "';eval catch $2 ^'&version {eval ''echo <='^ $2 ^'&version''}';exit};e='"\
 "';if (eval '{let ''a^~a''} >[2] /dev/null'){e='"\
@@ -30,7 +30,7 @@ case `(typeset -Z2 b=0;$e $b)2>$n` in 00) (eval ':${.}')2>$n&&eval '
 $e ksh93 ${.sh.version}';t K pdk;$e ksh88;;esac;case `(eval '$e ${f#*s}$($e 1
 )$((1+1))')2>$n` in e12)$e POSIX shell;;esac;$e Bourne-like shell;: !
 print "ruby ",RUBY_VERSION,"\n";exit;' ''';import sys
-print("python "+sys.version);z='''*/1;s="";j="JavaScript";print((f="function")
+print("python "+sys.version);z='''*/;s="";j="JavaScript";print((f="function")
 ==(t=typeof version)?"string"==typeof(v=version())?v:(typeof build!=f?"":s=
 "SpiderMonkey ")+j+" "+v:(t=="undefined"?j+"?":version)+"\n");if(s)build();/*
 :FIN } *///'''
