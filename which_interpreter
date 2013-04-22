@@ -10,11 +10,7 @@ echo ">/dev/null;status=0;@ {status=1};*=(" '$' ");~ $status 1&&{e='"\
 "';if (eval '{let ''a^~a''} >[2] /dev/null'){e='"\
 "';exec echo akanga};eval exec echo rc $2 ^ version;\" > /dev/null
 : #;echo possibly pre-Bourne UNIX V1-6 shell;exit
-if { bindkey >& /dev/null } then
-exec echo $version
-else
-exec echo csh
-endif
+bindkey>&/dev/null&&exec echo $version;exec echo csh
 :DOS
 @CLS
 @IF NOT "%DOSEMU_VERSION%"=="" ECHO DOSEMU %DOSEMU_VERSION%
