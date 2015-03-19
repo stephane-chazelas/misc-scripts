@@ -26,6 +26,7 @@ locvar.sh
 
 How to implement a local scope (for functions or sourced code or eval blocks...) in a POSIX shell.
 
+lsofc
+-----
 
-
-
+Wrapper around lsof to add peer information for sockets.
