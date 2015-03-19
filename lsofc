@@ -1,102 +1,135 @@
-#! /usr/bin/perl -w
+#! /usr/bin/perl
 # wrapper around lsof to add peer information for sockets. needs superuser
-# privileges.
+# privileges except on linux-3.3 and above with a working "ss".
+#
 # Copyright Stephane Chazelas 2015, public domain.
 # example: sudo lsofc -Ui@localhost
 
-no warnings 'portable';  # 64bit hex on 64bit systems
 use Socket;
 
-open K, "<", "/proc/kcore" or die "open kcore: $!";
-read K, $h, 8192 # should be more than enough
- or die "read kcore: $!";
+my $usable_ss;
+my (%peer, %dir);
+if (open SS, '-|', 'ss', '-nexa') {
+  while (<SS>) {
+    # parse unix domain list.
+    if (/\s(\d+)\s+\*\s+(\d+) ([<-]-[->])$/) {
+      # if we find a non-null peer, that means we can probably trust ss
+      $usable_ss = 1 if $2;
+      $peer{$1} = $2;
+      $dir{$1} = $3;
+    }
+  }
+  close SS;
+}
 
-# parse ELF header
-my ($t,$o,$n) = unpack("x4Cx[C19L!]L!x[L!C8]S", $h);
-$t = $t == 1 ? "L3x4Lx12" : "Lx4QQx8Qx16"; # program header ELF32 or ELF64
-my @headers = unpack("x$o($t)$n",$h);
+my (%fields, %proc);
 
-# read data from kcore at given address (obtaining file offset from ELF
-# @headers)
-sub readaddr {
-  my @h = @headers;
-  my ($addr, $length) = @_;
-  my $offset;
-  while (my ($t, $o, $v, $s) = splice @h, 0, 4) {
-    if ($addr >= $v && $addr < $v + $s) {
-      $offset = $o + $addr - $v;
-      if ($addr + $length - $v > $s) {
-        $length = $s - ($addr - $v);
+if ($usable_ss) {
+  # Now get info about processes tied to sockets using lsof
+  open LSOF, '-|', 'lsof', '-nPUFpcfin';
+  while (<LSOF>) {
+    if (/(.)(.*)/) {
+      $fields{$1} = $2;
+      if ($1 eq 'n') {
+	$proc{$fields{i}}->{"$fields{c},$fields{p}" .
+	($fields{n} =~ m{^([@/].*?)( type=\w+)?$} ? ",$1" : "")} = "";
       }
+    }
+  }
+  close LSOF;
+} else {
+  # revert to getting peer information from kernel memory.
+  open K, "<", "/proc/kcore" or die "open kcore: $!";
+  read K, $h, 8192 # should be more than enough
+   or die "read kcore: $!";
+
+  # parse ELF header
+  my ($t,$o,$n) = unpack("x4Cx[C19L!]L!x[L!C8]S", $h);
+  $t = $t == 1 ? "L3x4Lx12" : "Lx4QQx8Qx16"; # program header ELF32 or ELF64
+  my @headers = unpack("x$o($t)$n",$h);
+
+  # helper to read data from kcore at given address (obtaining file offset from
+  # ELF @headers)
+  sub readaddr {
+    my @h = @headers;
+    my ($addr, $length) = @_;
+    my $offset;
+    while (my ($t, $o, $v, $s) = splice @h, 0, 4) {
+      if ($addr >= $v && $addr < $v + $s) {
+	$offset = $o + $addr - $v;
+	if ($addr + $length - $v > $s) {
+	  $length = $s - ($addr - $v);
+	}
+	last;
+      }
+    }
+    return undef unless defined($offset);
+    seek K, $offset, 0 or die "seek kcore: $!";
+    my $ret;
+    read K, $ret, $length or die "read($length) kcore \@$offset: $!";
+    return $ret;
+  }
+
+  # create a dummy socketpair to try and find the offset of the
+  # peer member in the kernel structure
+  socketpair(Rdr, Wtr, AF_UNIX, SOCK_STREAM, PF_UNSPEC)
+   or die "socketpair: $!";
+  my $r = readlink("/proc/self/fd/" . fileno(Rdr)) or die "readlink Rdr: $!";
+  $r =~ /\[(\d+)/; $r = $1;
+  my $w = readlink("/proc/self/fd/" . fileno(Wtr)) or die "readlink Wtr: $!";
+  $w =~ /\[(\d+)/; $w = $1;
+  # now $r and $w contain the socket inodes of both ends of the socketpair
+  die "Can't determine peer offset" unless $r && $w;
+
+  # get the inode->address mapping
+  my %addr;
+  open U, "<", "/proc/net/unix" or die "open unix: $!";
+  while (<U>) {
+    if (/^([0-9a-f]+):(?:\s+\S+){5}\s+(\d+)/) {
+      $addr{$2} = hex $1;
+    }
+  }
+  close U;
+
+  die "Can't determine peer offset" unless $addr{$r} && $addr{$w};
+
+  # read 2048 bytes starting at the address of Rdr and hope to find
+  # the address of Wtr referenced somewhere in there.
+  my $around = readaddr $addr{$r}, 2048;
+  my $offset = 0;
+  my $ptr_size = length(pack("L!",0));
+  my $found;
+  for (unpack("L!*", $around)) {
+    if ($_ == $addr{$w}) {
+      $found = 1;
       last;
     }
+    $offset += $ptr_size;
   }
-  return undef unless defined($offset);
-  seek K, $offset, 0 or die "seek kcore: $!";
-  my $ret;
-  read K, $ret, $length or die "read($length) kcore \@$offset: $!";
-  return $ret;
-}
+  die "Can't determine peer offset" unless $found;
 
-# create a dummy socketpair to try and find the offset of the
-# peer member in the kernel structure
-socketpair(Rdr, Wtr, AF_UNIX, SOCK_STREAM, PF_UNSPEC)
- or die "socketpair: $!";
-my $r = readlink("/proc/self/fd/" . fileno(Rdr)) or die "readlink Rdr: $!";
-$r =~ /\[(\d+)/; $r = $1;
-my $w = readlink("/proc/self/fd/" . fileno(Wtr)) or die "readlink Wtr: $!";
-$w =~ /\[(\d+)/; $w = $1;
-# now $r and $w contain the socket inodes of both ends of the socketpair
-die "Can't determine peer offset" unless $r && $w;
-
-# get the inode->address mapping
-my %addr;
-open U, "<", "/proc/net/unix" or die "open unix: $!";
-while (<U>) {
-  if (/^([0-9a-f]+):(?:\s+\S+){5}\s+(\d+)/) {
-    $addr{$2} = hex $1;
+  my %peer;
+  # now retrieve peer for each socket
+  for my $inode (keys %addr) {
+    $peer{$addr{$inode}} = unpack("L!", readaddr($addr{$inode}+$offset,$ptr_size));
   }
-}
-close U;
+  close K;
 
-die "Can't determine peer offset" unless $addr{$r} && $addr{$w};
-
-# read 2048 bytes starting at the address of Rdr and hope to find
-# the address of Wtr referenced somewhere in there.
-my $around = readaddr $addr{$r}, 2048;
-my $offset = 0;
-my $ptr_size = length(pack("L!",0));
-my $found;
-for (unpack("L!*", $around)) {
-  if ($_ == $addr{$w}) {
-    $found = 1;
-    last;
-  }
-  $offset += $ptr_size;
-}
-die "Can't determine peer offset" unless $found;
-
-my %peer;
-# now retrieve peer for each socket
-for my $inode (keys %addr) {
-  $peer{$addr{$inode}} = unpack("L!", readaddr($addr{$inode}+$offset,$ptr_size));
-}
-close K;
-
-# Now get info about processes tied to sockets using lsof
-my (%fields, %proc);
-open LSOF, '-|', 'lsof', '-nPUFpcfdn';
-while (<LSOF>) {
-  if (/(.)(.*)/) {
-    $fields{$1} = $2;
-    if ($1 eq 'n') {
-      $proc{hex($fields{d})}->{"$fields{c},$fields{p}" .
-      ($fields{n} =~ m{^([@/].*?)( type=\w+)?$} ? ",$1" : "")} = "";
+  # Now get info about processes tied to sockets using lsof
+  open LSOF, '-|', 'lsof', '-nPUFpcfdn';
+  while (<LSOF>) {
+    if (/(.)(.*)/) {
+      $fields{$1} = $2;
+      if ($1 eq 'n') {
+	$proc{hex($fields{d})}->{"$fields{c},$fields{p}" .
+	($fields{n} =~ m{^([@/].*?)( type=\w+)?$} ? ",$1" : "")} = "";
+      }
     }
   }
 }
 
-# try an identify peers of loopback connections. Here we store a:
+# Now for TCP sockets.
+# We try to identify peers of loopback connections. Here we store a:
 # "x:p->y:q" -> ["cmd,pid"...] relationship using numerical values
 # for x,y,p,q.
 my %net;
@@ -114,13 +147,14 @@ close LSOF;
 
 # Now to be able to process host and service names, we need
 # to know what host name the system uses for the loop back
-# interface addresses:
+# interface addresses. These should work even for very old perls:
 my ($l4) = gethostbyaddr(pack("C4",127,0,0,1), AF_INET);
 my ($l6) = gethostbyaddr(pack("x15C",1), AF_INET6);
 my %name_to_num = (
   $l4 => "127.0.0.1",
   $l6 => "[::1]"
 );
+# regexp to match localhost as IPv4 or IPv6 (numerical or name):
 my $localhost = join "|", map {qr{\Q$_\E}} keys %name_to_num, values %name_to_num;
 $localhost = qr{$localhost};
 
@@ -129,16 +163,31 @@ $localhost = qr{$localhost};
 open LSOF, '-|', 'lsof', @ARGV;
 while (<LSOF>) {
   chomp;
-  for my $addr (/0x[0-9a-f]+/g) {
-    $addr = hex $addr;
-    my $peer = $peer{$addr};
-    if (defined($peer)) {
-      $_ .= $peer ?
-	    sprintf(" -> 0x%x[", $peer) . join("|", keys%{$proc{$peer}}) . "]" :
-            "[LISTENING]";
-      last;
+  if ($usable_ss) {
+    # we use the inode number (decimal, so we rely on it being the 3rd
+    # field after "unix"
+    if (/\sunix\s+\S+\s+\S+\s+(\d+)\s/) {
+      my $peer = $peer{$1};
+      if (defined($peer)) {
+	$_ .= $peer ?
+	      " ${dir{$1}} $peer\[" . (join("|", keys%{$proc{$peer}})||"?") . "]" :
+	      "[LISTENING]";
+      }
+    }
+  } else {
+    # we use the unix_sock address as hex number
+    for my $addr (/0x[0-9a-f]+/g) {
+      $addr = hex $addr;
+      my $peer = $peer{$addr};
+      if (defined($peer)) {
+	$_ .= $peer ?
+	      sprintf(" -> 0x%x[", $peer) . join("|", keys%{$proc{$peer}}) . "]" :
+	      "[LISTENING]";
+	last;
+      }
     }
   }
+  # Handle TCP connections:
   if (/\s($localhost):([\w-]+)->($localhost):([\w-]+)\s/) {
     my ($a, $ap, $b, $bp) = ($1, $2, $3, $4);
     # convert to numerical form, assume 127.1 and [::1] for
@@ -154,3 +203,4 @@ while (<LSOF>) {
   }
   print "$_\n";
 }
+close LSOF or exit(1);
