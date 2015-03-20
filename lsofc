@@ -1,9 +1,30 @@
 #! /usr/bin/perl
-# wrapper around lsof to add peer information for sockets. needs superuser
-# privileges except on linux-3.3 and above with a working "ss".
+# wrapper around lsof to add peer information for sockets.
+#
+# Where the "ss" command can give peer information for Unix domain
+# sockets, it uses that and also retrieves information on which
+# direction of the socket is shut down (indicated with arrows like <--,
+# -->, <->, ---).
+#
+# Where not (older systems), we get the information from kernel memory
+# (/proc/kcore). In that case, superuser privileges are required.
 #
 # Copyright Stephane Chazelas 2015, public domain.
-# example: sudo lsofc -Ui@localhost
+#
+# example without "ss":
+# # lsofc -ad14,21,22 -c mysqld
+# COMMAND  PID  USER   FD   TYPE             DEVICE SIZE/OFF     NODE NAME
+# mysqld  1260 mysql   14u  unix 0xffff880f48b48680      0t0 47793475 /var/run/mysqld/mysqld.sock -> 0xffff880f48b4aa40[authdaemond,2692]
+# mysqld  1260 mysql   21u  IPv4           47946785      0t0      TCP localhost:mysql->localhost:44477 (ESTABLISHED) -> [proxymap,40597]
+# mysqld  1260 mysql   22u  unix 0xffff880fbd6ab0c0      0t0 47953869 /var/run/mysqld/mysqld.sock -> 0xffff880fbd6afb80[postfix-policyd,3455]
+#
+# Example with "ss":
+# # lsofc -aUc packagekit
+# COMMAND     PID USER   FD   TYPE             DEVICE SIZE/OFF   NODE NAME
+# packageki 26565 root    1u  unix 0xffff8800a95081c0      0t0 591416 type=STREAM --> 591417[systemd-journal,233,/run/systemd/journal/stdout]
+# packageki 26565 root    2u  unix 0xffff8800a95081c0      0t0 591416 type=STREAM --> 591417[systemd-journal,233,/run/systemd/journal/stdout]
+# packageki 26565 root    3u  unix 0xffff8802168f04c0      0t0 592167 type=DGRAM
+# packageki 26565 root    5u  unix 0xffff8801bd2f0780      0t0 591426 type=STREAM <-> 592168[dbus-daemon,2268,/var/run/dbus/system_bus_socket]
 
 use Socket;
 
@@ -28,7 +49,7 @@ if (open SS, '-|', 'ss', '-nexa') {
 my (%fields, %proc, %net);
 
 # get an idea of what [command,pid] has any given (unix or tcp) socket
-# open. We store the information in the keys of hash for each socket.
+# open. We store the information in the keys of a hash for each socket.
 open LSOF, '-|', qw{lsof -nMPFpctidn -U -i@[::1] -i@127.0.0.1};
 while (<LSOF>) {
   if (/(.)(.*)/) {
