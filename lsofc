@@ -9,6 +9,9 @@ use Socket;
 
 my $usable_ss;
 my (%peer, %dir);
+
+# Try and get unix socket peer information from the ss command.
+# While we're at it, we also use -e to get direction (-->, <-->...)
 if (open SS, '-|', 'ss', '-nexa') {
   while (<SS>) {
     # parse unix domain list.
@@ -22,23 +25,33 @@ if (open SS, '-|', 'ss', '-nexa') {
   close SS;
 }
 
-my (%fields, %proc);
+my (%fields, %proc, %net);
 
-if ($usable_ss) {
-  # Now get info about processes tied to sockets using lsof
-  open LSOF, '-|', 'lsof', '-nPUFpcfin';
-  while (<LSOF>) {
-    if (/(.)(.*)/) {
-      $fields{$1} = $2;
-      if ($1 eq 'n') {
-	$proc{$fields{i}}->{"$fields{c},$fields{p}" .
+# get an idea of what [command,pid] has any given (unix or tcp) socket
+# open. We store the information in the keys of hash for each socket.
+open LSOF, '-|', qw{lsof -nMPFpctidn -U -i@[::1] -i@127.0.0.1};
+while (<LSOF>) {
+  if (/(.)(.*)/) {
+    $fields{$1} = $2;
+    if ($1 eq 'n') {
+      if ($fields{t} eq 'unix') {
+	$proc{$usable_ss ? $fields{i} : hex $fields{d}}->{"$fields{c},$fields{p}" .
 	($fields{n} =~ m{^([@/].*?)( type=\w+)?$} ? ",$1" : "")} = "";
+      } else {
+	# for TCP sockets, We try to identify peers of loopback connections.
+	# Here we store a: "x:p->y:q" -> ["cmd,pid"...] relationship using
+	# numerical values for x,y,p,q.
+	$net{$fields{n}}->{"$fields{c},$fields{p}"} = "";
       }
     }
   }
-  close LSOF;
-} else {
-  # revert to getting peer information from kernel memory.
+}
+close LSOF;
+
+if (!$usable_ss) {
+  # if we can't use ss, revert to getting peer information from kernel memory.
+  # That works pretty well even for very old systems but requires superuser
+  # privileges.
   open K, "<", "/proc/kcore" or die "open kcore: $!";
   read K, $h, 8192 # should be more than enough
    or die "read kcore: $!";
@@ -108,46 +121,17 @@ if ($usable_ss) {
   }
   die "Can't determine peer offset" unless $found;
 
-  my %peer;
   # now retrieve peer for each socket
   for my $inode (keys %addr) {
     $peer{$addr{$inode}} = unpack("L!", readaddr($addr{$inode}+$offset,$ptr_size));
   }
   close K;
-
-  # Now get info about processes tied to sockets using lsof
-  open LSOF, '-|', 'lsof', '-nPUFpcfdn';
-  while (<LSOF>) {
-    if (/(.)(.*)/) {
-      $fields{$1} = $2;
-      if ($1 eq 'n') {
-	$proc{hex($fields{d})}->{"$fields{c},$fields{p}" .
-	($fields{n} =~ m{^([@/].*?)( type=\w+)?$} ? ",$1" : "")} = "";
-      }
-    }
-  }
 }
 
-# Now for TCP sockets.
-# We try to identify peers of loopback connections. Here we store a:
-# "x:p->y:q" -> ["cmd,pid"...] relationship using numerical values
-# for x,y,p,q.
-my %net;
-close LSOF;
-open LSOF, '-|', 'lsof', '-nPFpcfn', '-i@[::1]', '-i@127.0.0.1';
-while (<LSOF>) {
-  if (/(.)(.*)/) {
-    $fields{$1} = $2;
-    if ($1 eq 'n') {
-      $net{$fields{n}}->{"$fields{c},$fields{p}"} = "";
-    }
-  }
-}
-close LSOF;
-
-# Now to be able to process host and service names, we need
-# to know what host name the system uses for the loop back
-# interface addresses. These should work even for very old perls:
+# Now to be able to process host and service names, we need to know what
+# host name the system uses for the loop back interface addresses
+# (things like "localhost", "ip6-localhost"). These should work even for
+# very old perls:
 my ($l4) = gethostbyaddr(pack("C4",127,0,0,1), AF_INET);
 my ($l6) = gethostbyaddr(pack("x15C",1), AF_INET6);
 my %name_to_num = (
@@ -158,10 +142,9 @@ my %name_to_num = (
 my $localhost = join "|", map {qr{\Q$_\E}} keys %name_to_num, values %name_to_num;
 $localhost = qr{$localhost};
 
-
 # and finally process the lsof output
 open LSOF, '-|', 'lsof', @ARGV;
-while (<LSOF>) {
+LINE: while (<LSOF>) {
   chomp;
   if ($usable_ss) {
     # we use the inode number (decimal, so we rely on it being the 3rd
@@ -172,6 +155,7 @@ while (<LSOF>) {
 	$_ .= $peer ?
 	      " ${dir{$1}} $peer\[" . (join("|", keys%{$proc{$peer}})||"?") . "]" :
 	      "[LISTENING]";
+	next LINE;
       }
     }
   } else {
@@ -183,7 +167,7 @@ while (<LSOF>) {
 	$_ .= $peer ?
 	      sprintf(" -> 0x%x[", $peer) . join("|", keys%{$proc{$peer}}) . "]" :
 	      "[LISTENING]";
-	last;
+	next LINE;
       }
     }
   }
@@ -201,6 +185,7 @@ while (<LSOF>) {
       $_ .= " -> [" . join("|", keys(%{$peer})) . "]";
     }
   }
+} continue {
   print "$_\n";
 }
 close LSOF or exit(1);
