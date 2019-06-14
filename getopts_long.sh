@@ -136,7 +136,7 @@ getopts_long() {
   #
   # verbose=false opt_bar=false bar=default_bar foo=default_foo
   # opt_s=false opt_long=false
-  # OPTLIND=1
+  # OPTLIND=1 OPTLPENDING= # or OPTLIND=0
   # while getopts_long :sf:b::vh opt \
   #   long 0 \
   #   foo required_argument \
@@ -490,7 +490,7 @@ if [ -n "$test_getopts_long" ]; then
 test_getopts_long() {
   expected="$1" had=
   shift
-  OPTLIND=1
+  OPTLIND=1 OPTLPENDING=
 
   while err="$(set +x;getopts_long "$@" 2>&1 > /dev/null)"
     getopts_long "$@" 2> /dev/null; do
